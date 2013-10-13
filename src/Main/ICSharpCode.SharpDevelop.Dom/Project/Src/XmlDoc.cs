@@ -15,6 +15,8 @@ namespace ICSharpCode.SharpDevelop.Dom
 	public sealed class XmlDoc : IDisposable
 	{
 		static readonly List<string> xmlDocLookupDirectories = new List<string> {
+			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5.1"),
+			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5"),
 			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0"),
 			System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory()
 		};
@@ -68,8 +70,13 @@ namespace ICSharpCode.SharpDevelop.Dom
 		
 		public string GetDocumentation(string key)
 		{
-			if (xmlDescription == null)
-				throw new ObjectDisposedException("XmlDoc");
+			if (xmlDescription == null) {
+				//throw new ObjectDisposedException("XmlDoc");
+				// Sometimes SD accesses a project content after it is disposed.
+				// Not sure why, but we can avoid the crash by just returning null.
+				// SD5 fixes the issue by making IProjectContent immutable (no Dispose() method)
+				return null;
+			}
 			lock (xmlDescription) {
 				string result;
 				if (xmlDescription.TryGetValue(key, out result))

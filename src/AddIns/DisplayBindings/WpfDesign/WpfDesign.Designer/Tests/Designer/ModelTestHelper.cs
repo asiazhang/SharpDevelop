@@ -10,9 +10,11 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using ICSharpCode.WpfDesign.Adorners;
 using NUnit.Framework;
 using ICSharpCode.WpfDesign.Designer;
 using ICSharpCode.WpfDesign.Designer.Xaml;
+using Rhino.Mocks;
 
 namespace ICSharpCode.WpfDesign.Tests.Designer
 {
@@ -21,6 +23,8 @@ namespace ICSharpCode.WpfDesign.Tests.Designer
 	/// </summary>
 	public class ModelTestHelper
 	{
+		public const string DesignerTestsNamespace = "clr-namespace:ICSharpCode.WpfDesign.Tests.Designer;assembly=ICSharpCode.WpfDesign.Tests";
+		
 		protected StringBuilder log;
 		
 		protected XamlDesignContext CreateContext(string xaml)
@@ -33,6 +37,11 @@ namespace ICSharpCode.WpfDesign.Tests.Designer
 			context.Services.Component.ComponentUnregistered += delegate(object sender, DesignItemEventArgs e) {
 				log.AppendLine("Unregister " + ItemIdentity(e.Item));
 			};*/
+			
+			// create required service mocks
+			var designPanel = MockRepository.GenerateStub<IDesignPanel>();
+			designPanel.Stub(dp => dp.Adorners).Return(new System.Collections.Generic.List<AdornerPanel>());
+			context.Services.AddService(typeof(IDesignPanel), designPanel);
 			return context;
 		}
 		
@@ -40,7 +49,8 @@ namespace ICSharpCode.WpfDesign.Tests.Designer
 		{
 			XamlDesignContext context = CreateContext(@"<Canvas
   xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
-  xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml"">
+  xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+  xmlns:t=""" + DesignerTestsNamespace + @""">
   " + xaml + "</Canvas>");
 			Canvas canvas = (Canvas)context.RootItem.Component;
 			DesignItem canvasChild = context.Services.Component.GetDesignItem(canvas.Children[0]);
@@ -49,13 +59,23 @@ namespace ICSharpCode.WpfDesign.Tests.Designer
 			return canvasChild;
 		}
 		
-		protected void AssertCanvasDesignerOutput(string expectedXaml, DesignContext context)
+		protected void AssertCanvasDesignerOutput(string expectedXaml, DesignContext context, params String[] additionalXmlns)
 		{
+			string canvasStartTag =
+				"<Canvas xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
+				 "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" " +
+				 "xmlns:t=\"" + DesignerTestsNamespace + "\"";
+
+			
+			foreach(string ns in additionalXmlns) {
+				canvasStartTag += " " + ns;
+			}
+
+			expectedXaml = canvasStartTag + ">\n" + expectedXaml.Trim();
+			
 			expectedXaml =
 				"<?xml version=\"1.0\" encoding=\"utf-16\"?>\n" +
-				("<Canvas xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
-				 "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" + expectedXaml.Trim())
-				.Replace("\r", "").Replace("\n", "\n  ")
+				expectedXaml.Replace("\r", "").Replace("\n", "\n  ")
 				+ "\n</Canvas>";
 			
 			StringWriter stringWriter = new StringWriter();
